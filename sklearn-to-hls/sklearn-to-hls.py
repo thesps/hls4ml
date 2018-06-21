@@ -8,6 +8,59 @@ filedir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0,os.path.join(filedir, "..", "hls-writer"))
 from hls_writer import bdt_writer, parse_config
 
+class Node:
+  def __init__(self, i=None, parent=None, lChild=None, rChild=None):
+    self._parent = parent
+    self._lChild = lChild
+    self._rChild = rChild
+    self._i = i
+
+def nParents(node):
+  n = 0
+  while node._parent is not None:
+    node = node._parent
+    n += 1
+  return n
+
+def makeBalancedTreeLeftFirst(depth=3):
+  iN = 0
+  node = Node(i=iN)
+  iN += 1
+  n_nodes = 2**(depth + 1) - 1
+  children_left = [-1] * n_nodes
+  children_right = [-1] * n_nodes
+  parents = [-1] * n_nodes
+  while iN < 2**(depth+1) -1:
+    if node._lChild is None and nParents(node) < depth:
+      new_node = Node(i=iN, parent=node)
+      node._lChild = new_node
+      children_left[node._i] = new_node._i
+      parents[new_node._i] = node._i
+      node = new_node
+      iN += 1
+    elif node._rChild is None and nParents(node) < depth:
+      new_node = Node(i=iN, parent=node)
+      node._rChild = new_node
+      children_right[node._i] = new_node._i
+      parents[new_node._i] = node._i
+      node = new_node
+      iN += 1
+    else:
+      climb = True
+      while climb:# node._parent._rChild is not None and node._parent._i != 0:
+        if node._parent is None:
+          climb = False
+        elif node._rChild is None and nParents(node) < depth:
+          climb = False
+        else:
+          node = node._parent
+      if node._i == 0 and node._lChild is not None and node._rChild is not None:
+        done = True
+  while node._parent is not None:
+    node = node._parent
+  return {'children_left' : children_left, 'children_right' : children_right, 'parents' : parents}
+
+
 def ensembleToDict(bdt):
   ensembleDict = {'max_depth' : bdt.max_depth, 'n_trees' : bdt.n_estimators,
                   'n_features' : len(bdt.feature_importances_),
@@ -20,7 +73,7 @@ def ensembleToDict(bdt):
       tree = padTree(ensembleDict, tree)
       treesl.append(tree)
     ensembleDict['trees'].append(treesl)
-
+    ensembleDict['base_tree'] = makeBalancedTreeLeftFirst(bdt.max_depth)
   return ensembleDict
 
 def treeToDict(bdt, tree):

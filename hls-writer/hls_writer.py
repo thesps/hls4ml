@@ -454,6 +454,7 @@ def bdt_writer(ensemble_dict, yamlConfig):
     fout.write('\t#pragma HLS array_partition variable=x\n\n')
     fout.write('\t#pragma HLS array_partition variable=score\n\n')
     fout.write('\tbdt.decision_function(x, score);\n}')
+
     fout.close()
 
     ###################
@@ -475,6 +476,26 @@ def bdt_writer(ensemble_dict, yamlConfig):
     fout.write('typedef score_t score_arr_t[n_classes];\n')
     # TODO score_arr_t
     fout.write('typedef input_t threshold_t;\n\n')
+
+    # Write the specialisation of Tree::decision_function for this max_depth
+    base_tree = ensemble_dict['base_tree']
+    n_nodes = len(base_tree['children_left'])
+    fout.write('template<>\n')
+    fout.write('void BDT::doActivations<{}>(bool activation_leaf[{}], bool comparison[{}]){{\n'.format(ensemble_dict['max_depth'], 2**ensemble_dict['max_depth'], n_nodes))
+    fout.write('\tbool activation[{}];\n'.format(n_nodes))
+    fout.write('\t#pragma HLS ARRAY_PARTITION variable=activation\n')
+    fout.write('\tactivation[0] = true;\n')
+    iLeaf = 0
+    for i in range(1, n_nodes):
+      if i == base_tree['children_left'][base_tree['parents'][i]]: # is the left child
+        negation = ''
+      else:
+        negation = '!'
+      fout.write('\tactivation[{}] = {}comparison[{}] && activation[{}];\n'.format(i, negation, base_tree['parents'][i], base_tree['parents'][i]))
+      if base_tree['children_left'][i] == -1: # is a leaf
+        fout.write('\tactivation_leaf[{}] = activation[{}];\n'.format(iLeaf, i))
+        iLeaf += 1
+    fout.write('\n}\n')
 
     tree_fields = ['feature', 'threshold', 'value', 'children_left', 'children_right', 'parent']
 

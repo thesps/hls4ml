@@ -22,6 +22,9 @@ constexpr int fn_classes(int n_classes){
   return n_classes == 2 ? 1 : n_classes;
 }
 
+template<int max_depth>
+void doActivations(bool activation_leaf[fn_leaves(max_depth)], bool comparison[fn_nodes(max_depth)]);
+
 template<int max_depth, class input_t, class score_t, class threshold_t>
 struct Tree {
 private:
@@ -35,7 +38,7 @@ public:
 	int children_right[n_nodes];
 	int parent[n_nodes];
 
-	score_t decision_function(input_t x) const{
+	score_t tree_decision_function(input_t x) const{
 		#pragma HLS pipeline II = 1
 		#pragma HLS ARRAY_PARTITION variable=feature
 		#pragma HLS ARRAY_PARTITION variable=threshold
@@ -43,27 +46,19 @@ public:
 		#pragma HLS ARRAY_PARTITION variable=children_left
 		#pragma HLS ARRAY_PARTITION variable=children_right
 		#pragma HLS ARRAY_PARTITION variable=parent
-    // These resource pragmas prevent the array of trees from being partitioned
-    // They should be unnecessary anyway due to their own partitioning above
-		/*#pragma HLS RESOURCE variable=feature core=ROM_nP_LUTRAM
-		#pragma HLS RESOURCE variable=threshold core=ROM_nP_LUTRAM
-		#pragma HLS RESOURCE variable=value core=ROM_nP_LUTRAM
-		#pragma HLS RESOURCE variable=children_left core=ROM_nP_LUTRAM
-		#pragma HLS RESOURCE variable=children_right core=ROM_nP_LUTRAM
-		#pragma HLS RESOURCE variable=parent core=ROM_nP_LUTRAM*/
 
 		bool comparison[n_nodes];
-		bool activation[n_nodes];
+		//bool activation[n_nodes];
 		bool activation_leaf[n_leaves];
 		score_t value_leaf[n_leaves];
 
 		#pragma HLS ARRAY_PARTITION variable=comparison
-		#pragma HLS ARRAY_PARTITION variable=activation
+		//#pragma HLS ARRAY_PARTITION variable=activation
 		#pragma HLS ARRAY_PARTITION variable=activation_leaf
 		#pragma HLS ARRAY_PARTITION variable=value_leaf
 
 		// Execute all comparisons
-		Compare: for(int i = 0; i < n_nodes; i++){
+		Compare:for(int i = 0; i < n_nodes; i++){
 			#pragma HLS unroll
 			// Only non-leaf nodes do comparisons
 			if(feature[i] != -2){ // -2 means is a leaf (at least for sklearn)
@@ -73,24 +68,11 @@ public:
 			}
 		}
 
-		// Determine node activity for all nodes
+		doActivations<max_depth>(activation_leaf, comparison);
+
 		int iLeaf = 0;
-		Activate: for(int i = 0; i < n_nodes; i++){
-			#pragma HLS unroll
-			// Root node is always active
-			if(i == 0){
-				activation[i] = true;
-			}else{
-				// If this node is the left child of its parent
-				if(i == children_left[parent[i]]){
-					activation[i] = comparison[parent[i]] && activation[parent[i]];
-				}else{ // Else it is the right child
-					activation[i] = !comparison[parent[i]] && activation[parent[i]];
-				}
-			}
-			// Skim off the leaves
-			if(children_left[i] == -1){ // is a leaf
-				activation_leaf[iLeaf] = activation[i];
+		for(int i = 0; i < n_leaves; i++){
+			if(children_left[i] == -1){
 				value_leaf[iLeaf] = value[i];
 				iLeaf++;
 			}
@@ -122,7 +104,7 @@ public:
 		for(int i = 0; i < n_trees; i++){
 			Classes:
 			for(int j = 0; j < fn_classes(n_classes); j++){
-				score[j] += trees[i][j].decision_function(x);
+				score[j] += trees[i][j].tree_decision_function(x);
 			}
 		}
 	}
