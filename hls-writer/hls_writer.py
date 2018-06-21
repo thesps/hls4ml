@@ -437,6 +437,10 @@ def bdt_writer(ensemble_dict, yamlConfig):
 
     filedir = os.path.dirname(os.path.abspath(__file__))
 
+    # TODO allow "verbose: 'Auto'" and choose explicit / compact function
+    # based on expected usage
+    verbose_mode = yamlConfig['Verbose']
+
     ###################
     ## myproject.cpp
     ###################
@@ -453,7 +457,11 @@ def bdt_writer(ensemble_dict, yamlConfig):
     fout.write('\t#pragma HLS unroll factor = {}\n'.format(yamlConfig['ReuseFactor']))
     fout.write('\t#pragma HLS array_partition variable=x\n\n')
     fout.write('\t#pragma HLS array_partition variable=score\n\n')
-    fout.write('\tbdt.decision_function(x, score);\n}')
+    if verbose_mode:
+        fout.write('\tdecision_function(x, score);\n}\n\n')
+        write_bdt_verbose(fout, ensemble_dict)
+    else:
+        fout.write('\tbdt.decision_function(x, score);\n}')
     fout.close()
 
     ###################
@@ -476,8 +484,93 @@ def bdt_writer(ensemble_dict, yamlConfig):
     # TODO score_arr_t
     fout.write('typedef input_t threshold_t;\n\n')
 
-    tree_fields = ['feature', 'threshold', 'value', 'children_left', 'children_right', 'parent']
+    if verbose_mode == False:
+      write_bdt_with_class(fout, ensemble_dict)
+    fout.write('\n#endif')
+    fout.close()
 
+    #######################
+    ## myproject.h
+    #######################
+
+    f = open(os.path.join(filedir,'../hls-template/firmware/myproject.h'),'r')
+    fout = open('{}/firmware/{}.h'.format(yamlConfig['OutputDir'], yamlConfig['ProjectName']),'w')
+
+    for line in f.readlines():
+
+        if 'MYPROJECT' in line:
+            newline = line.replace('MYPROJECT',format(yamlConfig['ProjectName'].upper()))
+        elif 'void myproject(' in line:
+            newline = 'void {}(\n'.format(yamlConfig['ProjectName'])
+        elif 'input_t data[N_INPUTS]' in line:
+            newline = '\tinput_arr_t data,\n\tscore_arr_t score);'
+        # Remove some lines
+        elif ('result_t' in line) or ('unsigned short' in line):
+            newline = ''
+        elif ('endif' in line):
+            if verbose_mode:
+                newline = "void decision_function(input_arr_t x, score_arr_t score);\n\n"
+                newline += "#endif"
+        else:
+            newline = line
+        fout.write(newline)
+
+    f.close()
+    fout.close()
+
+    #######################
+    ## myproject_test.cpp
+    #######################
+
+    fout = open('{}/{}_test.cpp'.format(yamlConfig['OutputDir'], yamlConfig['ProjectName']),'w')
+
+    fout.write('#include "BDT.h"\n')
+    fout.write('#include "firmware/parameters.h"\n')
+    fout.write('#include "firmware/{}.h"\n'.format(yamlConfig['ProjectName']))
+
+    fout.write('int main(){\n')
+    fout.write('\tinput_arr_t x = {{{}}};\n'.format(str([0] * ensemble_dict['n_features'])[1:-1]));
+    fout.write('\tscore_arr_t score;\n')
+    fout.write('\t{}(x, score);\n'.format(yamlConfig['ProjectName']))
+    fout.write('\tfor(int i = 0; i < n_classes; i++){\n')
+    fout.write('\t\tstd::cout << score[i] << ", ";\n\t}\n')
+    fout.write('\tstd::cout << std::endl;\n')
+    fout.write('\treturn 0;\n}')
+    fout.close()
+   
+    #######################
+    ## build_prj.tcl
+    #######################
+
+    bdtdir = os.path.abspath(os.path.join(filedir, "../bdt_utils"))
+    relpath = os.path.relpath(bdtdir, start=yamlConfig['OutputDir'])
+
+    f = open(os.path.join(filedir,'../hls-template/build_prj.tcl'),'r')
+    fout = open('{}/build_prj.tcl'.format(yamlConfig['OutputDir']),'w')
+
+    for line in f.readlines():
+
+        line = line.replace('nnet_utils', relpath)
+        line = line.replace('myproject', yamlConfig['ProjectName'])
+
+        #if 'set_top' in line:
+        #    line = line.replace('myproject', '{}_decision_function'.format(yamlConfig['ProjectName']))
+        if 'set_part {xc7vx690tffg1927-2}' in line:
+            line = 'set_part {{{}}}\n'.format(yamlConfig['XilinxPart'])
+        elif 'create_clock -period 5 -name default' in line:
+            line = 'create_clock -period {} -name default\n'.format(yamlConfig['ClockPeriod'])
+        # Remove some lines
+        elif ('weights' in line) or ('-tb firmware/weights' in line):
+            line = ''
+        elif ('cosim_design' in line):
+            line = ''
+
+        fout.write(line)
+    f.close()
+    fout.close()
+
+def write_bdt_using_class(fout, ensemble_dict):
+    tree_fields = ['feature', 'threshold', 'value', 'children_left', 'children_right', 'parent']
     fout.write("static const BDT::BDT<n_trees, max_depth, n_classes, input_arr_t, score_t, threshold_t> bdt = \n")
     fout.write("{ // The struct\n")
     newline = "\t{"
@@ -516,84 +609,66 @@ def bdt_writer(ensemble_dict, yamlConfig):
         fout.write(newline)
     fout.write('\t}\n};')
 
-    fout.write('\n#endif')
-    fout.close()
+def write_bdt_verbose(fout, ensemble_dict):
+    n_nodes = 2 ** (ensemble_dict['max_depth'] + 1) - 1
+    n_leaves = 2 ** ensemble_dict['max_depth']
+    # TODO explicit decision function
+    fout.write("void decision_function(input_arr_t x, score_arr_t score){\n")
+    n_classes = ensemble_dict['n_classes']
+    if n_classes == 2:
+      n_classes = 1
+    for iClass in range(n_classes):
+      fout.write("\tscore[{}] = {};\n".format(iClass, ensemble_dict['init_predict'][iClass]))
 
-    #######################
-    ## myproject.h
-    #######################
-
-    f = open(os.path.join(filedir,'../hls-template/firmware/myproject.h'),'r')
-    fout = open('{}/firmware/{}.h'.format(yamlConfig['OutputDir'], yamlConfig['ProjectName']),'w')
-
-    for line in f.readlines():
-
-        if 'MYPROJECT' in line:
-            newline = line.replace('MYPROJECT',format(yamlConfig['ProjectName'].upper()))
-        elif 'void myproject(' in line:
-            newline = 'void {}(\n'.format(yamlConfig['ProjectName'])
-        elif 'input_t data[N_INPUTS]' in line:
-            newline = '\tinput_arr_t data,\n\tscore_arr_t score);'
-        # Remove some lines
-        elif ('result_t' in line) or ('unsigned short' in line):
-            newline = ''
-        else:
-            newline = line
-        fout.write(newline)
-
-    f.close()
-    fout.close()
-
-    #######################
-    ## myproject_test.cpp
-    #######################
-
-    fout = open('{}/{}_test.cpp'.format(yamlConfig['OutputDir'], yamlConfig['ProjectName']),'w')
-
-    fout.write('#include "BDT.h"\n')
-    fout.write('#include "firmware/parameters.h"\n')
-    fout.write('#include "firmware/{}.h"\n'.format(yamlConfig['ProjectName']))
-
-    fout.write('int main(){\n')
-    fout.write('\tinput_arr_t x = {{{}}};\n'.format(str([0] * ensemble_dict['n_features'])[1:-1]));
-    fout.write('\tscore_arr_t score;\n')
-    fout.write('\t{}(x, score);\n'.format(yamlConfig['ProjectName']))
-    fout.write('\tfor(int i = 0; i < n_classes; i++){\n')
-    fout.write('\t\tstd::cout << score[i] << ", ";\n\t}\n')
-    fout.write('\tstd::cout << std::endl;\n')
-    fout.write('\treturn 0;\n}')
-    fout.close()
-   
-    fout.close()
-
-    #######################
-    ## build_prj.tcl
-    #######################
-
-    bdtdir = os.path.abspath(os.path.join(filedir, "../bdt_utils"))
-    relpath = os.path.relpath(bdtdir, start=yamlConfig['OutputDir'])
-
-    f = open(os.path.join(filedir,'../hls-template/build_prj.tcl'),'r')
-    fout = open('{}/build_prj.tcl'.format(yamlConfig['OutputDir']),'w')
-
-    for line in f.readlines():
-
-        line = line.replace('nnet_utils', relpath)
-        line = line.replace('myproject', yamlConfig['ProjectName'])
-
-        #if 'set_top' in line:
-        #    line = line.replace('myproject', '{}_decision_function'.format(yamlConfig['ProjectName']))
-        if 'set_part {xc7vx690tffg1927-2}' in line:
-            line = 'set_part {{{}}}\n'.format(yamlConfig['XilinxPart'])
-        elif 'create_clock -period 5 -name default' in line:
-            line = 'create_clock -period {} -name default\n'.format(yamlConfig['ClockPeriod'])
-        # Remove some lines
-        elif ('weights' in line) or ('-tb firmware/weights' in line):
-            line = ''
-        elif ('cosim_design' in line):
-            line = ''
-
-        fout.write(line)
-    f.close()
-    fout.close()
+    for iEstimator, estimator in enumerate(ensemble_dict['trees']): # loop over estimators
+      for iClass, tree in enumerate(estimator): # loop over classes within estimator
+        fout.write("\t// " + str(iEstimator) + ", " + str(iClass) + "\n")
+        prefix = str(iEstimator) + '_' + str(iClass)
+        fout.write("\t// Declare some tmp variables\n")
+        fout.write("\tscore_t tmp_score_{};\n".format(prefix))
+        for iNode in range(n_nodes - n_leaves):
+            fout.write("\tbool tmp_comp_{}_{};\n".format(prefix, iNode))
+        for iNode in range(n_nodes - n_leaves):
+            fout.write("\tinput_t tmp_comparand_{}_{};\n".format(prefix, iNode))
+        for iNode in range(n_nodes):
+            fout.write("\tbool tmp_active_{}_{};\n".format(prefix, iNode))
+        fout.write("\tbool tmp_active_leaf_{}[{}];\n".format(prefix, n_leaves)) 
+        fout.write("\tscore_t tmp_scores_{}[{}];\n".format(prefix, n_leaves))
+        fout.write("\t#pragma hls array partition variable=tmp_active_leaf_{}\n".format(prefix))
+        fout.write("\t#pragma hls array partition variable=tmp_scores_{}\n".format(prefix))
+        fout.write("\n")
+        # keep track of which comparison went to which var
+        comparison_is = [-2] * n_nodes
+        iComparison = 0
+        for iNode in range(n_nodes): # comparison loop over nodes
+          if tree['feature'][iNode] != -2: # -2 means leaf node, leaves don't do comparisons 
+            fout.write("\ttmp_comparand_{}_{} = {};\n".format(prefix, iComparison, tree['threshold'][iNode]))
+            fout.write("\ttmp_comp_{}_{} = x[{}] <= tmp_comparand_{}_{};\n".format(prefix, iComparison, tree['feature'][iNode], prefix, iComparison))
+            #fout.write("\ttmp_comp_{} = x[{}] <= {};\n".format(iComparison, tree['feature'][iNode], tree['threshold'][iNode]))
+            comparison_is[iNode] = iComparison
+            iComparison += 1
+        # end comparison loop
+        active_leaf_is = [-2] * n_nodes#n_leaves
+        iActiveLeaf = 0
+        for iNode in range(n_nodes):
+          iParent = tree['parent'][iNode]
+          if iNode == 0: # root node always comes first
+            fout.write("\ttmp_active_{}_{} = true;\n".format(prefix, iNode))
+          else:
+            lr_str = "" # For the left child
+            if iNode != tree['children_left'][iParent]: # this is the right child
+              lr_str = "!"
+            fout.write("\ttmp_active_{}_{} = tmp_active_{}_{} & {}tmp_comp_{}_{};\n".format(prefix, iNode, prefix, iParent, lr_str, prefix, comparison_is[iParent]))
+          if tree['feature'][iNode] == -2: # is leaf
+            fout.write("\ttmp_active_leaf_{}[{}] = tmp_active_{}_{};\n".format(prefix, iActiveLeaf, prefix, iNode))
+            active_leaf_is[iNode] = iActiveLeaf
+            iActiveLeaf += 1
+        # Select the score
+        for iNode in range(n_nodes):
+          if tree['feature'][iNode] == -2:
+            fout.write("\ttmp_scores_{}[{}] = {};\n".format(prefix, active_leaf_is[iNode], tree['value'][iNode]))
+        fout.write("\tfor(int i = 0; i < {}; i++){{\n".format(n_leaves)) 
+        fout.write("\t\tif(tmp_active_leaf_{}[i]){{\n\t\t\ttmp_score_{} = tmp_scores_{}[i];\n\t\t}}".format(prefix, prefix, prefix))
+        fout.write("\n\t}\n\tscore[" + str(iClass) + "] += tmp_score_{};\n\n".format(prefix))
+    fout.write("}\n")
 
