@@ -21,6 +21,7 @@
 #define NNET_DENSE_H_
 
 #include "nnet_common.h"
+#include "nnet_helpers.h"
 #include "hls_stream.h"
 #include <math.h>
 
@@ -134,6 +135,100 @@ void dense(
             #pragma HLS UNROLL
         }
         res[ires] = (res_T) (acc[ires]);
+    }
+}
+
+template<typename CONFIG_T>
+void binary_dense(
+    ap_uint<1>    data[CONFIG_T::n_in],
+    ap_int<nnet::ceillog2(CONFIG_T::n_in) + 1>     res[CONFIG_T::n_out],
+    ap_uint<1>  weights[CONFIG_T::n_in*CONFIG_T::n_out]
+    )
+{
+    ap_uint<1> cache;
+    ap_uint<1> mult[CONFIG_T::n_in*CONFIG_T::n_out];
+    ap_int<nnet::ceillog2(CONFIG_T::n_in) + 1> acc[CONFIG_T::n_out];
+
+    // Use a function_instantiate in case it helps to explicitly optimize unchanging weights/biases
+    #pragma HLS function_instantiate variable=weights
+
+    if (CONFIG_T::io_type == io_parallel){
+        // For parallel inputs:
+        //   - completely partition arrays -- target fabric
+        //   - if we have an unroll factor, limit number of multipliers
+        #pragma HLS PIPELINE II=CONFIG_T::reuse_factor
+
+        // #pragma HLS ARRAY_PARTITION variable=weights complete // remove this line for now, it breaks compression sometimes
+        #pragma HLS ARRAY_PARTITION variable=mult complete
+        #pragma HLS ARRAY_PARTITION variable=acc complete
+
+        int multiplier_limit  = ceil(float(CONFIG_T::n_in*CONFIG_T::n_out) / float(CONFIG_T::reuse_factor)) - floor(float(CONFIG_T::n_zeros) / float(CONFIG_T::reuse_factor));
+        #pragma HLS ALLOCATION instances=mul limit=multiplier_limit operation
+
+    } else if (CONFIG_T::io_type == io_serial){
+        // Only reduce cycle_factor if n_out is evenly divisible by reuse_factor
+        // Otherwise, HLS wont be happy
+        int cycle_factor = CONFIG_T::n_out;
+        float reused_cycle = CONFIG_T::n_out / CONFIG_T::reuse_factor;
+        if (reused_cycle == ceil(reused_cycle)){
+            // Dont use "ceil" here; as of 2018.2, HLS crashes mysteriously
+            cycle_factor = cycle_factor / CONFIG_T::reuse_factor;
+        }
+        #pragma HLS ARRAY_PARTITION variable=weights cyclic factor=cycle_factor
+        #pragma HLS ARRAY_PARTITION variable=mult cyclic factor=cycle_factor
+        #pragma HLS ARRAY_PARTITION variable=acc complete
+        #pragma HLS DATAFLOW
+        #pragma HLS STREAM variable=mult depth=1
+        #pragma HLS STREAM variable=acc depth=1
+        if (CONFIG_T::store_weights_in_bram){
+            #pragma HLS RESOURCE variable=weights core=ROM_2P_BRAM
+        }
+    }
+
+    // Do the matrix-multiply
+    Product1: for(int ii = 0; ii < CONFIG_T::n_in; ii++) {
+        if (CONFIG_T::io_type == io_serial){
+            #pragma HLS PIPELINE
+        }
+        cache = data[ii];
+        Product2: for(int jj = 0; jj < CONFIG_T::n_out; jj++) {
+            if (CONFIG_T::io_type == io_serial) {
+                int multiplier_limit  = ceil(float(CONFIG_T::n_out) / float(CONFIG_T::reuse_factor));
+                #pragma HLS ALLOCATION instances=mul limit=multiplier_limit operation
+            }
+        int index = ii*CONFIG_T::n_out+jj;
+        mult[index] = cache == weights[index]; // XNOR operation
+        }
+    }
+
+    // Initialize accumulator with 0s (no biases for binary)
+    ResetAccum: for(int iacc = 0; iacc < CONFIG_T::n_out; iacc++) {
+        if (CONFIG_T::io_type == io_serial){
+            #pragma HLS UNROLL
+        }
+        acc[iacc] = 0; // No biases for binary
+    }
+
+    // Accumulate multiplication result
+    // For binary encoding this counts the number of '+1' products
+    // The number of '-1' products is then n_products - n_positive_products
+    Accum1: for(int ii = 0; ii < CONFIG_T::n_in; ii++) {
+        if (CONFIG_T::io_type == io_serial){
+            #pragma HLS PIPELINE
+        }
+        Accum2: for(int jj = 0; jj < CONFIG_T::n_out; jj++) {
+        int index = ii*CONFIG_T::n_out+jj;
+        acc[jj] += mult[index];
+        }
+    }
+
+    // Cast to "res_t" type
+    Result: for(int ires = 0; ires < CONFIG_T::n_out; ires++){
+        if (CONFIG_T::io_type == io_serial){
+            #pragma HLS UNROLL
+        }
+        res[ires] = (ap_int<nnet::ceillog2(CONFIG_T::n_in) + 1>) (acc[ires] - CONFIG_T::n_in / 2) * 2;
+        //res[ires] = acc[ires];
     }
 }
 

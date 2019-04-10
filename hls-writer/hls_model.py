@@ -45,8 +45,11 @@ class HLSModel(object):
 
     def quantize_data(self, data, quantize):
         ones = np.ones_like(data)
+        zeros = np.zeros_like(data)
         quant_data = data
-        if quantize == 2:
+        if quantize == 1:
+            quant_data = np.where(data > 0, ones, zeros)
+        elif quantize == 2:
             quant_data = np.where(data > 0, ones, -ones)
         elif quantize == 3:
             zeros = np.zeros_like(data)

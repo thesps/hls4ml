@@ -649,8 +649,8 @@ void  prelu(data_T data[CONFIG_T::n_in], data_T alpha[CONFIG_T::n_in], res_T res
 // *************************************************
 //       Binary TanH Activation
 // *************************************************
-template<class data_T, class res_T, typename CONFIG_T>
-void  binary_tanh(data_T data[CONFIG_T::n_in], res_T res[CONFIG_T::n_in])
+template<class data_T, typename CONFIG_T>
+void  binary_tanh(data_T data[CONFIG_T::n_in], ap_uint<1> res[CONFIG_T::n_in])
 {
 
  if (CONFIG_T::io_type == io_parallel){
@@ -658,7 +658,7 @@ void  binary_tanh(data_T data[CONFIG_T::n_in], res_T res[CONFIG_T::n_in])
  }
   
  data_T datareg;   
- res_T cache; 
+ ap_uint<1> cache; 
  for (int ii=0; ii<CONFIG_T::n_in; ii++) {
 
   if (CONFIG_T::io_type == io_serial){
@@ -666,9 +666,9 @@ void  binary_tanh(data_T data[CONFIG_T::n_in], res_T res[CONFIG_T::n_in])
   }
   datareg = data[ii];	 
   if( datareg > 0 ) cache = 1;
-  else cache = -1;
+  else cache = 0;
   
-  res[ii] = (res_T) cache;
+  res[ii] = (ap_uint<1>) cache;
  
  }
  
