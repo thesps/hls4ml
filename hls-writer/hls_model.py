@@ -228,18 +228,18 @@ class Layer(object):
 
         self.variables[out_name] = out
 
-    def add_weights(self, quantize=0):
+    def add_weights(self, quantize=0, type_name='weight_default_t'):
         data = self.model.get_weights_data(self.name, 'kernel')
 
-        self.add_weights_variable(name='weight', var_name='w{index}', type_name='weight_default_t', data=data, quantize=quantize)
+        self.add_weights_variable(name='weight', var_name='w{index}', type_name=type_name, data=data, quantize=quantize)
 
-    def add_bias(self, quantize=0):
+    def add_bias(self, quantize=0, type_name='bias_default_t'):
         data = self.model.get_weights_data(self.name, 'bias')
         if data is None:
             data = np.zeros(self.get_output_variable().shape[-1])
             quantize = 0 # Don't quantize non-existant bias
 
-        self.add_weights_variable(name='bias', var_name='b{index}', type_name='bias_default_t', data=data, quantize=quantize)
+        self.add_weights_variable(name='bias', var_name='b{index}', type_name=type_name, data=data, quantize=quantize)
 
     def add_weights_variable(self, name, var_name=None, type_name='weight_default_t', precision=None, data=None, quantize=0):
         if var_name is None:
@@ -332,6 +332,33 @@ class Dense(Layer):
         params['n_in'] = self.get_input_variable().size_cpp()
         params['n_out'] = self.get_output_variable().size_cpp()
         params['nzeros'] = self.get_weights('weight').nzeros
+        params['accum_t'] = 'accum_default_t'
+        params['weight_t'] = 'weight_default_t'
+
+        return self._config_template.format(**params)
+
+class BinaryDense(Layer):
+    def initialize(self):
+        shape = [self.attributes['n_out']]
+        dims = ['N_LAYER_{}'.format(self.index)]
+        quantize = self.get_attr('quantize')
+        nbits = int(np.ceil(np.log2(self.attributes['n_out'])) + 1)
+        self.add_output_variable(shape, dims, precision='ap_int<{}>'.format(nbits))
+        self.add_weights(quantize=quantize, type_name='at_uint<1>')
+
+    def function_cpp(self):
+        params = self._default_function_params()
+        params['w'] = self.get_weights('weight').name
+
+        return [self._function_template.format(**params)]
+
+    def config_cpp(self):
+        params = self._default_config_params()
+        params['n_in'] = self.get_input_variable().size_cpp()
+        params['n_out'] = self.get_output_variable().size_cpp()
+        params['nzeros'] = self.get_weights('weight').nzeros
+        params['accum_t'] = 'ap_int<{}>'.format(np.log2(self.attributes['n_out']) + 1)
+        params['weight_t'] = 'ap_uint<1>'
 
         return self._config_template.format(**params)
 
@@ -572,7 +599,7 @@ layer_map = {
     'ELU'                : ParametrizedActivation,
     'PReLU'              : PReLU,
     'Dense'              : Dense,
-    'BinaryDense'        : Dense,
+    'BinaryDense'        : BinaryDense,
     'TernaryDense'       : Dense,
     'Conv1D'             : Conv1D,
     'Conv2D'             : Conv2D,
