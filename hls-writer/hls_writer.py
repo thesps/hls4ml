@@ -19,7 +19,10 @@ def parse_config(config_file) :
 #######################################
 ## Print weight array to C++
 #######################################
-def print_array_to_cpp(name, a, odir, i_part = 0, n_part = 1, i_subout = 0, n_subout = 1):
+def print_array_to_cpp(weights, odir, i_part = 0, n_part = 1, i_subout = 0, n_subout = 1):
+    name = weights.name
+    a = weights.data
+    T = weights.precision
 
     f=open("{}/firmware/weights/{}.h".format(odir,name),"w")
 
@@ -37,24 +40,10 @@ def print_array_to_cpp(name, a, odir, i_part = 0, n_part = 1, i_subout = 0, n_su
     f.write("\n")
 
     #c++ variable
-    if re.match(r"^w\d*$", name) or re.match(r"^a\d*$", name):
-        if n_part > 1:
-            f.write("weight_default_t {}_{}".format(name,i_part))
-        else:
-            f.write("weight_default_t {}".format(name))
-    elif re.match(r"^b\d*$", name):
-        if n_part > 1:
-            f.write("bias_default_t {}_{}".format(name,i_part))
-        else:
-            f.write("bias_default_t {}".format(name))
-    elif re.match(r"^beta\d*$", name):
-        f.write("beta_default_t {}".format(name))
-    elif re.match(r"^mean\d*$", name):
-        f.write("mean_default_t {}".format(name))
-    elif re.match(r"^scale\d*$", name):
-        f.write("scale_default_t {}".format(name))
+    if n_part > 1:
+        f.write("{} {}_{}".format(T, name, i_part))
     else:
-        raise Exception('ERROR: Unkown weights type')
+        f.write("{} {}".format(T, name))
 
     #hls doesn't like 3d arrays... unrolling to 1d
     #also doing for all (including 2d) arrays now
@@ -238,7 +227,7 @@ def write_parameters(model):
 def write_weights(model):
     for layer in model.get_layers():
         for weights in layer.get_weights():
-            print_array_to_cpp(weights.name, weights.data, model.get_output_dir())
+            print_array_to_cpp(weights, model.get_output_dir())
 
 def write_test_bench(model):
     ###################

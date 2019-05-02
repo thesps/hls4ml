@@ -16,6 +16,7 @@ filedir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0,os.path.join(filedir, "..", "hls-writer"))
 from hls_writer import parse_config, write_hls
 from hls_model import HLSModel
+from optimize_bnn import optimize_bnn
 
 class KerasDataReader:
     def __init__(self, config):
@@ -359,5 +360,6 @@ if __name__ == "__main__":
         raise Exception('ERROR: Invalid IO type')
 
     hls_model = keras_to_hls_model(yamlConfig)
+    optimize_bnn(hls_model)
     write_hls(hls_model)
 

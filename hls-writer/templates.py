@@ -11,17 +11,6 @@ dense_config_template = """struct config{index} : nnet::dense_config {{
     typedef {weight_t} weight_t;
 }};\n"""
 
-binary_dense_config_template = """struct config{index} : nnet::binary_dense_config {{
-    static const unsigned n_in = {n_in};
-    static const unsigned n_out = {n_out};
-    static const unsigned io_type = nnet::{iotype};
-    static const unsigned reuse_factor = {reuse};
-    static const unsigned n_zeros = {nzeros};
-    static const bool store_weights_in_bram = false;
-    typedef {accum_t} accum_t;
-    typedef {weight_t} weight_t;
-}};\n"""
-
 batchnorm_config_template = """struct config{index} : nnet::batchnorm_config {{
     static const unsigned n_in = {n_in};
     static const unsigned n_filt = {n_filt};
@@ -124,7 +113,7 @@ concat_config_template = """struct config{index} : nnet::concat_config {{
 
 config_templates = {
     'Dense'                  : dense_config_template,
-    'BinaryDense'            : binary_dense_config_template,
+    'BinaryDense'            : dense_config_template,
     'BatchNormalization'     : batchnorm_config_template,
     'Conv1D'                 : conv1d_config_template,
     'Conv2D'                 : conv2d_config_template,
@@ -138,7 +127,6 @@ config_templates = {
 }
 
 dense_function_template = 'nnet::dense<{input_t}, {output_t}, {config}>({input}, {output}, {w}, {b});'
-binary_dense_function_template = 'nnet::binary_dense<{config}>({input}, {output}, {w});'
 batchnorm_function_template = 'nnet::normalize<{input_t}, {output_t}, {config}>({input}, {output}, {scale}, {beta}, {mean});'
 conv1d_function_template = 'nnet::conv_1d<{input_t}, {output_t}, {config}>({input}, {output}, {w}, {b});'
 conv2d_function_template = 'nnet::conv_2d<{input_t}, {output_t}, {config}>({input}, {output}, {w}, {b});'
@@ -150,7 +138,7 @@ merge_function_template = 'nnet::{merge}<{input1_t}, {input2_t}, {output_t}, {co
 
 function_templates = {
     'Dense'                  : dense_function_template,
-    'BinaryDense'            : binary_dense_function_template,
+    'BinaryDense'            : dense_function_template,
     'BatchNormalization'     : batchnorm_function_template,
     'Conv1D'                 : conv1d_function_template,
     'Conv2D'                 : conv2d_function_template,

@@ -48,9 +48,9 @@ class HLSModel(object):
         zeros = np.zeros_like(data)
         quant_data = data
         if quantize == 1:
-            quant_data = np.where(data > 0, ones, zeros)
+            quant_data = np.where(data > 0, ones, zeros).astype('int')
         elif quantize == 2:
-            quant_data = np.where(data > 0, ones, -ones)
+            quant_data = np.where(data > 0, ones, -ones).astype('int')
         elif quantize == 3:
             zeros = np.zeros_like(data)
             quant_data = np.where(data > 0.5, ones, np.where(data <= -0.5, -ones, zeros))
@@ -228,10 +228,10 @@ class Layer(object):
 
         self.variables[out_name] = out
 
-    def add_weights(self, quantize=0, type_name='weight_default_t'):
+    def add_weights(self, quantize=0, type_name='weight_default_t', precision=None):
         data = self.model.get_weights_data(self.name, 'kernel')
 
-        self.add_weights_variable(name='weight', var_name='w{index}', type_name=type_name, data=data, quantize=quantize)
+        self.add_weights_variable(name='weight', var_name='w{index}', type_name=type_name, data=data, quantize=quantize, precision=precision)
 
     def add_bias(self, quantize=0, type_name='bias_default_t'):
         data = self.model.get_weights_data(self.name, 'bias')
@@ -342,13 +342,20 @@ class BinaryDense(Layer):
         shape = [self.attributes['n_out']]
         dims = ['N_LAYER_{}'.format(self.index)]
         quantize = self.get_attr('quantize')
-        nbits = int(np.ceil(np.log2(self.attributes['n_out'])) + 1)
-        self.add_output_variable(shape, dims, precision='ap_int<{}>'.format(nbits))
-        self.add_weights(quantize=quantize, type_name='at_uint<1>')
+        # Number of bits for output is log2 of number of input nodes
+        # Since this is the number of uint<1>'s which are summed
+        nbits = int(np.ceil(np.log2(self.attributes['n_in'])) + 1)
+        otype = 'ap_int<{}>'.format(nbits)
+        self.add_output_variable(shape, dims, precision=otype)
+        self.add_weights(quantize=quantize, precision='ap_uint<1>')
+        # binary layer has no bias, so initialize a 0 array
+        zeros = np.zeros(shape=(self.attributes['n_out']))
+        self.add_weights_variable(name='bias', data=zeros, precision='ap_uint<1>', quantize=quantize)
 
     def function_cpp(self):
         params = self._default_function_params()
         params['w'] = self.get_weights('weight').name
+        params['b'] = self.get_weights('bias').name
 
         return [self._function_template.format(**params)]
 
@@ -357,8 +364,9 @@ class BinaryDense(Layer):
         params['n_in'] = self.get_input_variable().size_cpp()
         params['n_out'] = self.get_output_variable().size_cpp()
         params['nzeros'] = self.get_weights('weight').nzeros
-        params['accum_t'] = 'ap_int<{}>'.format(np.log2(self.attributes['n_out']) + 1)
+        params['accum_t'] = self.get_output_variable().precision
         params['weight_t'] = 'ap_uint<1>'
+        params['bias_t'] = 'ap_uint<1>' # dumy bias
 
         return self._config_template.format(**params)
 

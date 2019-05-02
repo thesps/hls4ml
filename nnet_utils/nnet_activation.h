@@ -706,6 +706,20 @@ void  ternary_tanh(data_T data[CONFIG_T::n_in], res_T res[CONFIG_T::n_in])
 // *************************************************
 //       Merged Batch Normalization and Binary Tanh
 // *************************************************
+struct batchnorm_binarytanh_config
+{
+    // Layer Sizes
+    static const unsigned n_in = 10;
+    static const unsigned n_filt = -1;
+    
+    // Resource reuse info
+    static const unsigned io_type = io_parallel;
+    static const unsigned reuse_factor = 1;
+    static const unsigned n_zeros = 0;
+
+    //typedef float threshold_T;
+};
+
 template<class data_T, typename CONFIG_T>
 void  normalize_binary_tanh(data_T data[CONFIG_T::n_in], ap_uint<1> res[CONFIG_T::n_in], data_T threshold[CONFIG_T::n_in])
 {
