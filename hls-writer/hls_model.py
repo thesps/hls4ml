@@ -334,6 +334,7 @@ class Dense(Layer):
         params['nzeros'] = self.get_weights('weight').nzeros
         params['accum_t'] = 'accum_default_t'
         params['weight_t'] = 'weight_default_t'
+        params['bias_t'] = 'bias_default_t'
 
         return self._config_template.format(**params)
 
