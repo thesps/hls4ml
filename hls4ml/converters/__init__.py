@@ -20,4 +20,9 @@ try:
 except ImportError:
     __tensorflow_enabled__ = False
 
+try:
+    from .sklearn_to_hls import sklearn_to_hls
+    __sklearn_enabled__ = True
+except ImportError:
+    __sklearn_enabled__ = False
 
