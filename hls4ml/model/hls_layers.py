@@ -594,7 +594,7 @@ class Dense(Layer):
         dims = ['N_LAYER_{}'.format(self.index)]
         compression = self.model.config.get_compression(self)
         if self.model.config.is_resource_strategy(self):
-            if self.model.config.backend.name == 'Vivado':
+            if self.model.config.backend.name in ['Vivado', 'Pynq']:
                 self.model.config.backend.set_closest_reuse_factor(self)
             if compression:
                 self.set_attr('strategy', 'compressed')
@@ -609,7 +609,7 @@ class Dense(Layer):
             if self.model.config.get_compression(self):
                 index_t = self.get_weights('weight').type.index_precision
             else:
-                if self.model.config.backend.name == 'Vivado':
+                if self.model.config.backend.name in ['Vivado', 'Pynq']:
                     self.weights['weight'].data = np.transpose(self.weights['weight'].data)
                     
         self.set_attr('index_t', index_t)
@@ -647,7 +647,7 @@ class Conv1D(Layer):
         self.add_bias(quantizer = self.get_attr('bias_quantizer'))
         if self.model.config.is_resource_strategy(self):
             self.set_attr('strategy', 'resource')
-            if self.model.config.backend.name == 'Vivado':
+            if self.model.config.backend.name in ['Vivado', 'Pynq']:
                 self.model.config.backend.set_closest_reuse_factor(self)
                 self.weights['weight'].data = np.transpose(self.weights['weight'].data, axes=[2, 0, 1]) #(W,C,F) => (F,W,C)
         else:
@@ -721,7 +721,7 @@ class SeparableConv1D(Layer):
         self.add_bias(quantizer=self.get_attr('bias_quantizer'))
         if self.model.config.is_resource_strategy(self):
             self.set_attr('strategy', 'resource')
-            if self.model.config.backend.name == 'Vivado':
+            if self.model.config.backend.name in ['Vivado', 'Pynq']:
                 self.model.config.backend.set_closest_reuse_factor(self)
                 self.weights['depthwise'].data = np.transpose(self.weights['depthwise'].data, axes=[2, 0, 1]) #(W,C,F) => (F,W,C)
                 self.weights['pointwise'].data = np.transpose(self.weights['pointwise'].data, axes=[2, 0, 1]) #(W,C,F) => (F,W,C)
@@ -836,7 +836,7 @@ class Conv2D(Layer):
         self.add_bias(quantizer=self.get_attr('bias_quantizer'))
         if self.model.config.is_resource_strategy(self):
             self.set_attr('strategy', 'resource')
-            if self.model.config.backend.name == 'Vivado':
+            if self.model.config.backend.name in ['Vivado', 'Pynq']:
                 self.model.config.backend.set_closest_reuse_factor(self)
                 self.weights['weight'].data = np.transpose(self.weights['weight'].data, axes=[3, 0, 1, 2]) #(H,W,C,F) => (F,H,W,C)
         else:
@@ -970,7 +970,7 @@ class SeparableConv2D(Layer):
         self.add_bias(quantizer=self.get_attr('bias_quantizer'))
         if self.model.config.is_resource_strategy(self):
             self.set_attr('strategy', 'resource')
-            if self.model.config.backend.name == 'Vivado':
+            if self.model.config.backend.name in ['Vivado', 'Pynq']:
                 self.model.config.backend.set_closest_reuse_factor(self)
                 self.weights['depthwise'].data = np.transpose(self.weights['depthwise'].data, axes=[3, 0, 1, 2]) #(H,W,C,F) => (F,H,W,C)
                 self.weights['pointwise'].data = np.transpose(self.weights['pointwise'].data, axes=[3, 0, 1, 2]) #(H,W,C,F) => (F,H,W,C)
@@ -1101,7 +1101,7 @@ class DepthwiseConv2D(Conv2D):
         self.add_bias(quantizer=self.get_attr('bias_quantizer'))
         if self.model.config.is_resource_strategy(self):
             self.set_attr('strategy', 'resource')
-            if self.model.config.backend.name == 'Vivado':
+            if self.model.config.backend.name in ['Vivado', 'Pynq']:
                 self.model.config.backend.set_closest_reuse_factor(self)
                 self.weights['weight'].data = np.transpose(self.weights['weight'].data, axes=[3, 0, 1, 2]) #(H,W,C,F) => (F,H,W,C)
         else:
@@ -1278,7 +1278,7 @@ class Activation(Layer):
         shape = inp.shape
         dims = inp.dim_names
         self.add_output_variable(shape, dims)
-        if self.model.config.backend.name == 'Vivado':
+        if self.model.config.backend.name in ['Vivado', 'Pynq']:
             if 'table_t' not in self.attributes:
                 self.set_attr('table_t', FixedPrecisionType(width=18, integer=8))
             if 'table_size' not in self.attributes:
@@ -1332,7 +1332,7 @@ class PReLU(Activation):
 class Softmax(Activation):
     def initialize(self):
         super(Softmax, self).initialize()
-        if self.model.config.backend.name == 'Vivado':
+        if self.model.config.backend.name in ['Vivado', 'Pynq']:
             if 'exp_table_t' not in self.attributes:
                 self.set_attr('exp_table_t', self.get_attr('table_t'))
             if 'inv_table_t' not in self.attributes:
