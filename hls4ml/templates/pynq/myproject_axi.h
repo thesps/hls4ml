@@ -1,7 +1,7 @@
 #ifndef MYPROJECT_AXI_H_
 #define MYPROJECT_AXI_H_
 
-#include "myproject.h"
+//hls-fpga-machine-learning insert include
 
 //hls-fpga-machine-learning insert definitions
 

@@ -1,4 +1,5 @@
 import os
+from shutil import copyfile
 import numpy as np
 from hls4ml.writer.vivado_writer import VivadoWriter
 from hls4ml.model.hls_model import IntegerPrecisionType, FixedPrecisionType
@@ -49,6 +50,8 @@ class PynqWriter(VivadoWriter):
         for line in f.readlines():
             if 'MYPROJECT' in line:
                 newline = line.replace('MYPROJECT',format(model.config.get_project_name().upper()))
+            elif '//hls-fpga-machine-learning insert include' in line:
+                newline = '#include "{}.h"\n'.format(model.config.get_project_name())
             elif 'void myproject(' in line:
                 newline = 'void {}_axi(\n'.format(model.config.get_project_name())
             elif '//hls-fpga-machine-learning insert definitions' in line:
@@ -79,6 +82,8 @@ class PynqWriter(VivadoWriter):
         for line in f.readlines():
             if 'void myproject(' in line:
                 newline = 'void {}_axi(\n'.format(model.config.get_project_name())
+            elif '//hls-fpga-machine-learning insert include' in line:
+                newline = '#include "{}_axi.h"\n'.format(model.config.get_project_name())
             elif '//hls-fpga-machine-learning insert local vars' in line:
                 newline = ''
                 newline += indent + inp.type.name + ' in_local[N_IN];\n'
@@ -113,6 +118,16 @@ class PynqWriter(VivadoWriter):
         f.close()
         fout.close()
         os.rename(newfile, oldfile)
+
+    def write_board_script(self, model):
+        '''
+        Write the tcl scripts to create a Vivado IPI project for the Pynq
+        '''
+        filedir = os.path.dirname(os.path.abspath(__file__))
+        copyfile(os.path.join(filedir,'../templates/pynq/pynq_design.tcl'), '{}/pynq_design.tcl'.format(model.config.get_output_dir()))
+        f = open('{}/project.tcl'.format(model.config.get_output_dir()),'w')
+        f.write('variable myproject\n')
+        f.write('set myproject "{}"\n'.format(model.config.get_project_name()))
         
     def write_hls(self, model):
         '''
@@ -121,5 +136,6 @@ class PynqWriter(VivadoWriter):
         super(PynqWriter, self).write_hls(model)
         self.write_axi_wrapper(model)
         self.modify_build_script(model)
+        self.write_board_script(model)
 
 

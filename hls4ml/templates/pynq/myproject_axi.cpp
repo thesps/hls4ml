@@ -1,4 +1,4 @@
-#include "myproject_axi.h"
+//hls-fpga-machine-learning insert include
 
 void myproject(
     input_axi_t in[N_IN],
