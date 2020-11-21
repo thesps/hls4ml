@@ -5,9 +5,9 @@ void myproject(
     output_axi_t out[N_OUT]
         ){
 
-    #pragma HLS INTERFACE s_axilite port=return bundle=CTRL_BUS
-    #pragma HLS INTERFACE m_axi depth=N_IN port=in offset=slave bundle=IN_BUS
-    #pragma HLS INTERFACE m_axi depth=N_OUT port=out offset=slave bundle=OUT_BUS
+    #pragma HLS INTERFACE ap_ctrl_none port=return
+    #pragma HLS INTERFACE s_axilite port=in
+    #pragma HLS INTERFACE s_axilite port=out
 
     unsigned short in_size = 0;
     unsigned short out_size = 0;
