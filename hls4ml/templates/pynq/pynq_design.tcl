@@ -1,7 +1,7 @@
 set tcldir [file dirname [info script]]
 source [file join $tcldir project.tcl]
 
-create_project project_1 ${myproject}_pynq -part xc7z020clg400-1
+create_project project_1 ${myproject}_pynq -part xc7z020clg400-1 -force
 
 set_property board_part tul.com.tw:pynq-z2:part0:1.0 [current_project]
 set_property  ip_repo_paths  ${myproject}_prj [current_project]
