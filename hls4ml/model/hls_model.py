@@ -544,7 +544,7 @@ class HLSModel(object):
     def build(self, reset=False, csim=True, synth=True, cosim=False, validation=False, export=False, vsynth=False):
         if 'linux' in sys.platform:
             backend = self.config.get_config_value('Backend', 'Vivado')
-            if backend == 'Vivado':
+            if backend == 'Vivado' or backend == 'Pynq':
                 found = os.system('command -v vivado_hls > /dev/null')
                 if found != 0:
                     raise Exception('Vivado HLS installation not found. Make sure "vivado_hls" is on PATH.')
