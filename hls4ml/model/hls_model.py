@@ -20,6 +20,7 @@ class HLSConfig(object):
         self.config = config
 
         self.backend = get_backend(self.config.get('Backend', 'Vivado'))
+        self.interface = self.config.get('Interface', 's_axilite')
         self.writer = get_writer(self.config.get('Backend', 'Vivado'))
 
         self.model_precision = {}

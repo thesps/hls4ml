@@ -89,7 +89,18 @@ class PynqWriter(VivadoWriter):
                 newline += indent + inp.type.name + ' in_local[N_IN];\n'
                 newline += indent + out.type.name + ' out_local[N_OUT];\n'
             elif '//hls-fpga-machine-learning insert call' in line:
-                newline = indent + '{}(in_local, out_local, in_size, out_size);\n'.format(model.config.get_project_name())
+                newline = indent + '{}(in_local, out_local, in_size, out_size);\n'.format(model.config.get_project_name())         
+            elif '//hls-fpga-machine-learning insert interface' in line:
+                if model.config.interface == 's_axilite':
+                    newline = ''
+                    newline += indent + '#pragma HLS INTERFACE ap_ctrl_none port=return\n'
+                    newline += indent + '#pragma HLS INTERFACE s_axilite port=in\n'
+                    newline += indent + '#pragma HLS INTERFACE s_axilite port=out\n'
+                elif model.config.interface == 'm_axi':
+                    newline = ''
+                    newline += indent + '#pragma HLS INTERFACE s_axilite port=return bundle=CTRL_BUS\n'
+                    newline += indent + '#pragma HLS INTERFACE m_axi depth=in_size port=in offset=slave bundle=IN_BUS\n'
+                    newline += indent + '#pragma HLS INTERFACE m_axi depth=out_size port=out offset=slave bundle=OUT_BUS\n'
             else:
                 newline = line
             fout.write(newline)
