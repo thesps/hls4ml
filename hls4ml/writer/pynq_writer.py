@@ -113,14 +113,15 @@ class PynqWriter(VivadoWriter):
                 if io_type == 'io_parallel':
                     newline = ''
                     newline += indent + 'for(unsigned i = 0; i < N_IN; i++){\n'
-                    newline += indent + indent + '#pragma HLS unroll\n'
+                    newline += indent + indent + '#pragma HLS UNROLL\n'
                     newline += indent + indent + 'in_local[i] = in[i]; // Read input with cast\n'
                     newline += indent + '}\n'
                 elif io_type=='io_stream':
                     newline = ''
                     newline += indent + 'for (unsigned i = 0; i < N_IN / {input_t}::size; ++i) {{\n'
-                    newline += indent + indent + '#pragma HLS UNROLL\n'
+                    newline += indent + indent + '#pragma HLS PIPELINE\n'
                     newline += indent + indent + '{input_t} ctype;\n'
+                    newline += indent + indent + '#pragma HLS DATA_PACK variable=ctype\n'
                     newline += indent + indent + 'for(unsigned j = 0; j < {input_t}::size; j++) {{\n'
                     newline += indent + indent + indent + '#pragma HLS UNROLL\n'
                     newline += indent + indent + indent + 'ctype[j] = typename {input_t}::value_type(in[i * {input_t}::size + j]);\n'
@@ -133,13 +134,13 @@ class PynqWriter(VivadoWriter):
                 if io_type == 'io_parallel':
                     newline = ''
                     newline += indent + 'for(unsigned i = 0; i < N_OUT; i++){\n'
-                    newline += indent + indent + '#pragma HLS unroll\n'
+                    newline += indent + indent + '#pragma HLS UNROLL\n'
                     newline += indent + indent + 'out[i] = out_local[i]; // Write output with cast\n'
                     newline += indent + '}\n'
                 elif io_type == 'io_stream':
                     newline = ''
                     newline += indent + 'for(unsigned i = 0; i < N_OUT / {result_t}::size; ++i) {{\n'
-                    newline += indent + indent + '#pragma HLS UNROLL\n'
+                    newline += indent + indent + '#pragma HLS PIPELINE\n'
                     newline += indent + indent + '{result_t} ctype = out_local.read();\n'
                     newline += indent + indent + 'for(unsigned j = 0; j < {result_t}::size; j++) {{\n'
                     newline += indent + indent + indent + '#pragma HLS UNROLL\n'
