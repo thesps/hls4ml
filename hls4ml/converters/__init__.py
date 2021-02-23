@@ -63,9 +63,16 @@ def convert_from_yaml_config(yamlConfig):
     return model
 
 def convert_from_keras_model(model, output_dir='my-hls-test', project_name='myproject',
-                             fpga_part='xcku115-flvb2104-2-i', clock_period=5, hls_config={}, backend='Vivado'):
-    config = create_backend_config(output_dir=output_dir,
-                                   project_name=project_name, fpga_part=fpga_part, clock_period=clock_period, backend=backend)
+                             fpga_part='xcku115-flvb2104-2-i', clock_period=5, io_type='io_parallel', hls_config={}, backend='Vivado'):
+    
+    config = create_backend_config(
+        output_dir=output_dir,
+        project_name=project_name,
+        fpga_part=fpga_part,
+        clock_period=clock_period,
+        io_type=io_type,
+        backend=backend
+    )
     config['KerasModel'] = model
 
     model_config = hls_config.get('Model', None)
@@ -86,5 +93,8 @@ def convert_from_keras_model(model, output_dir='my-hls-test', project_name='mypr
 
     if 'Optimizers' in hls_config:
         config['HLSConfig']['Optimizers'] = hls_config['Optimizers']
+
+    if 'SkipOptimizers' in hls_config:
+        config['HLSConfig']['SkipOptimizers'] = hls_config['SkipOptimizers']
     
     return keras_to_hls(config)

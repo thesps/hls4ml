@@ -65,6 +65,7 @@ if {$opt(reset)} {
   open_solution "solution1"
 }
 catch {config_array_partition -maximum_size 4096}
+config_compile -name_max_length 60
 set_part {xcku115-flvb2104-2-i}
 create_clock -period 5 -name default
 
@@ -92,6 +93,8 @@ if {$opt(cosim)} {
   set time_start [clock clicks -milliseconds]
   cosim_design -trace_level all
   set time_end [clock clicks -milliseconds]
+  puts "INFO:"
+  puts [read [open myproject_prj/solution1/sim/report/myproject_cosim.rpt r]]
   report_time "C/RTL SIMULATION" $time_start $time_end
 }
 

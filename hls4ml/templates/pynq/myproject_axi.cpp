@@ -5,23 +5,16 @@ void myproject(
     output_axi_t out[N_OUT]
         ){
 
-    #pragma HLS INTERFACE ap_ctrl_none port=return
-    #pragma HLS INTERFACE s_axilite port=in
-    #pragma HLS INTERFACE s_axilite port=out
+    //hls-fpga-machine-learning insert interface
 
     unsigned short in_size = 0;
     unsigned short out_size = 0;
 
     //hls-fpga-machine-learning insert local vars
 
-    for(unsigned i = 0; i < N_IN; i++){
-        #pragma HLS unroll
-        in_local[i] = in[i]; // Read input with cast
-    }
+    //hls-fpga-machine-learning insert enqueue
 
     //hls-fpga-machine-learning insert call
-    for(unsigned i = 0; i < N_OUT; i++){
-        #pragma HLS unroll
-        out[i] = out_local[i]; // Write output with cast
-    }
+
+    //hls-fpga-machine-learning insert dequeue
 }
