@@ -94,7 +94,9 @@ class PynqWriter(VivadoWriter):
                 elif io_type == 'io_stream':
                     newline = ''
                     newline += indent + 'hls::stream<' + inp.type.name + '> in_local("input_1");\n'
-                    newline += indent + 'hls::stream<' + out.type.name + '> out_local("output_1");\n'
+                    newline += indent + 'hls::stream<' + out.type.name + '> out_local("output_1");\n\n'
+                    newline += indent + '#pragma HLS STREAM variable=in_local depth=N_IN\n'
+                    newline += indent + '#pragma HLS STREAM variable=out_local depth=N_OUT\n'
             elif '//hls-fpga-machine-learning insert call' in line:
                 newline = indent + '{}(in_local, out_local, in_size, out_size);\n'.format(model.config.get_project_name())         
             elif '//hls-fpga-machine-learning insert interface' in line:
@@ -119,11 +121,11 @@ class PynqWriter(VivadoWriter):
                 elif io_type == 'io_stream':
                     newline = ''
                     newline += indent + 'for(unsigned i = 0; i < N_IN / {input_t}::size; ++i) {{\n'
-                    newline += indent + indent + '#pragma HLS PIPELINE\n'
+                    #newline += indent + indent + '#pragma HLS PIPELINE\n'
                     newline += indent + indent + '{input_t} ctype;\n'
                     newline += indent + indent + '#pragma HLS DATA_PACK variable=ctype\n'
                     newline += indent + indent + 'for(unsigned j = 0; j < {input_t}::size; j++) {{\n'
-                    newline += indent + indent + indent + '#pragma HLS UNROLL\n'
+                    #newline += indent + indent + indent + '#pragma HLS UNROLL\n'
                     newline += indent + indent + indent + 'ctype[j] = typename {input_t}::value_type(in[i * {input_t}::size + j]);\n'
                     newline += indent + indent + '}}\n'
                     newline += indent + indent + 'in_local.write(ctype);\n'
@@ -140,10 +142,10 @@ class PynqWriter(VivadoWriter):
                 elif io_type == 'io_stream':
                     newline = ''
                     newline += indent + 'for(unsigned i = 0; i < N_OUT / {result_t}::size; ++i) {{\n'
-                    newline += indent + indent + '#pragma HLS PIPELINE\n'
+                    #newline += indent + indent + '#pragma HLS PIPELINE\n'
                     newline += indent + indent + '{result_t} ctype = out_local.read();\n'
                     newline += indent + indent + 'for(unsigned j = 0; j < {result_t}::size; j++) {{\n'
-                    newline += indent + indent + indent + '#pragma HLS UNROLL\n'
+                    #newline += indent + indent + indent + '#pragma HLS UNROLL\n'
                     newline += indent + indent + indent + 'out[i * {result_t}::size + j] = output_axi_t(ctype[j]);\n'
                     newline += indent + indent + '}}\n'
                     newline += indent + '}}\n'
