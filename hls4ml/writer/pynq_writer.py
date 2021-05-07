@@ -35,7 +35,7 @@ class PynqWriter(VivadoWriter):
         inp = model_inputs[0]
         out = model_outputs[0]
         inp_axi_t = self.next_axi_type(inp.type.precision)
-        out_axi_t = self.next_axi_type(inp.type.precision)
+        out_axi_t = self.next_axi_type(out.type.precision)
 
         indent = '    '
 
@@ -158,7 +158,7 @@ class PynqWriter(VivadoWriter):
 
     def modify_build_script(self, model):
         '''
-        Modify the build_prj.tcl script to add the extra wrapper files and set the top function
+        Modify the build_prj.tcl and build_lib.sh scripts to add the extra wrapper files and set the top function
         '''
         filedir = os.path.dirname(os.path.abspath(__file__))
         oldfile = '{}/build_prj.tcl'.format(model.config.get_output_dir())
@@ -179,15 +179,141 @@ class PynqWriter(VivadoWriter):
         fout.close()
         os.rename(newfile, oldfile)
 
-    def write_board_script(self, model):
+        ###################
+        # build_lib.sh
+        ###################
+
+        f = open(os.path.join(filedir,'../templates/pynq/build_lib.sh'),'r')
+        fout = open('{}/build_lib.sh'.format(model.config.get_output_dir()),'w')
+
+        for line in f.readlines():
+            line = line.replace('myproject', model.config.get_project_name())
+            line = line.replace('mystamp', model.config.get_config_value('Stamp'))
+
+            fout.write(line)
+        f.close()
+        fout.close()
+        
+    def apply_patches(self, model):
         '''
-        Write the tcl scripts to create a Vivado IPI project for the Pynq
+        Apply patches.
         '''
         filedir = os.path.dirname(os.path.abspath(__file__))
-        copyfile(os.path.join(filedir,'../templates/pynq/pynq_design.tcl'), '{}/pynq_design.tcl'.format(model.config.get_output_dir()))
-        f = open('{}/project.tcl'.format(model.config.get_output_dir()),'w')
-        f.write('variable myproject\n')
-        f.write('set myproject "{}"\n'.format(model.config.get_project_name()))
+
+        indent = '    '
+
+        ###################
+        # patch myproject_axi.h
+        ###################  
+        oldfile = '{}/firmware/{}_axi.h'.format(model.config.get_output_dir(), model.config.get_project_name())
+        newfile = '{}/firmware/{}_axi_patch.h'.format(model.config.get_output_dir(), model.config.get_project_name())
+
+        f = open(oldfile,'r')
+        fout = open(newfile, 'w')
+
+        for line in f.readlines():
+            if 'typedef' in line and 'input_axi_t;' in line:
+                # hardcoded ap_uint<8> input
+                newline = 'typedef ap_uint<8> input_axi_t;\n'
+            else:
+                newline = line
+            fout.write(newline)
+
+        f.close()
+        fout.close()
+        os.rename(newfile, oldfile)
+
+        ###################
+        # patch myproject_axi.cpp
+        ###################
+        oldfile = '{}/firmware/{}_axi.cpp'.format(model.config.get_output_dir(), model.config.get_project_name())
+        newfile = '{}/firmware/{}_axi_patch.cpp'.format(model.config.get_output_dir(), model.config.get_project_name())
+
+        f = open(oldfile,'r')
+        fout = open(newfile, 'w')
+
+        for line in f.readlines():
+            if 'ctype[j] = typename input_t::value_type' in line:
+                # these lines are hardcoded to do the bitshift by 256
+                newline = indent + indent + indent + 'ap_ufixed<16,8> tmp = in[i * input_t::size + j]; // store 8 bit input in a larger temp variable\n'
+                newline += indent + indent + indent + 'ctype[j] = typename input_t::value_type(tmp >> 8); // shift right by 8 (div by 256) and select only the decimal of the larger temp variable\n'
+            else:
+                newline = line
+            fout.write(newline)
+
+        f.close()
+        fout.close()
+        os.rename(newfile, oldfile)
+
+        ###################
+        # patch myproject_test.cpp
+        ###################
+        oldfile = '{}/{}_test.cpp'.format(model.config.get_output_dir(), model.config.get_project_name())
+        newfile = '{}/{}_test_patch.cpp'.format(model.config.get_output_dir(), model.config.get_project_name())
+
+        f = open(oldfile,'r')
+        fout = open(newfile, 'w')
+
+        inp = model.get_input_variables()[0]
+        out = model.get_output_variables()[0]
+
+        for line in f.readlines():
+            if '{}.h'.format(model.config.get_project_name()) in line:
+                newline = line.replace('{}.h'.format(model.config.get_project_name()), '{}_axi.h'.format(model.config.get_project_name()))            
+            elif self.variable_definition_cpp(model, inp) in line:
+                newline = line.replace(self.variable_definition_cpp(model, inp), 'input_axi_t inputs[N_IN]')
+            elif self.variable_definition_cpp(model, out) in line:
+                newline = line.replace(self.variable_definition_cpp(model, out), 'output_axi_t outputs[N_OUT]')
+            elif 'unsigned short' in line:
+                newline = ''
+            elif '{}('.format(model.config.get_project_name()) in line:
+                indent_amount = line.split(model.config.get_project_name())[0]
+                newline = indent_amount + '{}_axi(inputs,outputs);\n'.format(model.config.get_project_name())
+            elif inp.size_cpp() in line or inp.cppname in line or inp.type.name in line:
+                newline = line.replace(inp.size_cpp(),'N_IN').replace(inp.cppname, 'inputs').replace(inp.type.name, 'input_axi_t')
+            elif out.size_cpp() in line or out.cppname in line or out.type.name in line:
+                newline = line.replace(out.size_cpp(),'N_OUT').replace(out.cppname, 'outputs').replace(out.type.name, 'output_axi_t')
+            else:
+                newline = line
+            fout.write(newline)
+
+        f.close()
+        fout.close()
+        os.rename(newfile, oldfile)
+
+        ###################
+        # patch myproject_bridge.cpp
+        ###################
+        oldfile = '{}/{}_bridge.cpp'.format(model.config.get_output_dir(), model.config.get_project_name())
+        newfile = '{}/{}_bridge_patch.cpp'.format(model.config.get_output_dir(), model.config.get_project_name())
+
+        f = open(oldfile,'r')
+        fout = open(newfile, 'w')
+
+        inp = model.get_input_variables()[0]
+        out = model.get_output_variables()[0]
+
+        for line in f.readlines():
+            if '{}.h'.format(model.config.get_project_name()) in line:
+                newline = line.replace('{}.h'.format(model.config.get_project_name()), '{}_axi.h'.format(model.config.get_project_name()))            
+            elif self.variable_definition_cpp(model, inp, name_suffix='_ap') in line:
+                newline = line.replace(self.variable_definition_cpp(model, inp, name_suffix='_ap'), 'input_axi_t {}_ap[N_IN]'.format(inp.cppname))
+            elif self.variable_definition_cpp(model, out, name_suffix='_ap') in line:
+                newline = line.replace(self.variable_definition_cpp(model, out, name_suffix='_ap'), 'output_axi_t {}_ap[N_OUT]'.format(out.cppname))
+            elif '{}('.format(model.config.get_project_name()) in line:
+                indent_amount = line.split(model.config.get_project_name())[0]
+                newline = indent_amount + '{}_axi({}_ap,{}_ap);\n'.format(model.config.get_project_name(), inp.cppname,out.cppname)
+            elif inp.size_cpp() in line or inp.cppname in line or inp.type.name in line:
+                newline = line.replace(inp.size_cpp(),'N_IN').replace(inp.type.name, 'input_axi_t')
+            elif out.size_cpp() in line or out.cppname in line or out.type.name in line:
+                newline = line.replace(out.size_cpp(),'N_OUT').replace(out.type.name, 'output_axi_t')
+            else:
+                newline = line
+            fout.write(newline)
+
+        f.close()
+        fout.close()
+        os.rename(newfile, oldfile)
         
     def write_hls(self, model):
         '''
@@ -196,6 +322,6 @@ class PynqWriter(VivadoWriter):
         super(PynqWriter, self).write_hls(model)
         self.write_axi_wrapper(model)
         self.modify_build_script(model)
-        self.write_board_script(model)
-
+        if model.config.get_config_value('ApplyPatches'):
+            self.apply_patches(model)
 
