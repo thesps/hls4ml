@@ -499,7 +499,7 @@ class VivadoBackend(Backend):
         elif 'int' in precision:
             return IntegerPrecisionType(W, signed)
 
-    def product_type(self, data_T, weight_T):
+    def product_type(self, data_T, weight_T, force_dsp=False):
         '''
         Helper function to determine which product implementation to use during inference
         '''
@@ -516,6 +516,8 @@ class VivadoBackend(Backend):
                 product = 'weight_binary'
             elif isinstance(weight_T, IntegerPrecisionType) and weight_T.width == 2 and weight_T.signed:
                 product = 'weight_ternary'
+            elif force_dsp:
+                product = 'mult_dsp'
             else:
                 product = 'mult'
         return product

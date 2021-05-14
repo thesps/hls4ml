@@ -628,7 +628,7 @@ class Dense(Layer):
         params['n_out'] = self.get_output_variable().size_cpp()
         params['nzeros'] = self.get_weights('weight').nzeros
         params['nonzeros'] = self.get_weights('weight').nonzeros
-        params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('weight').type.precision)
+        params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('weight').type.precision, force_dsp=self.get_attr('force_dsp', False))
         params['strategy'] = self.get_attr('strategy')
 
         return self._config_template.format(**params)
@@ -694,7 +694,7 @@ class Conv1D(Layer):
         mult_params = self._default_config_params()
         mult_params['n_in'] = self.get_attr('n_chan') * self.get_attr('filt_width')
         mult_params['n_out'] = self.get_attr('n_filt')
-        mult_params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('weight').type.precision)
+        mult_params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('weight').type.precision, force_dsp=self.get_attr('force_dsp', False))
         mult_config = self._config_template[1].format(**mult_params)
 
         return mult_config + '\n' + conv_config
@@ -786,7 +786,7 @@ class SeparableConv1D(Layer):
         mult_params['n_in'] = self.get_attr('n_chan') * self.get_attr('filt_width')
         mult_params['n_out'] = self.get_attr('n_chan')
         mult_params['weight_t'] = self.get_weights('depthwise').type.name
-        mult_params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('depthwise').type.precision)
+        mult_params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('depthwise').type.precision, force_dsp=self.get_attr('force_dsp', False))
         depthwise_mult_config = self._config_template[3].format(**mult_params)
 
         # Pointwise config
@@ -818,7 +818,7 @@ class SeparableConv1D(Layer):
         mult_params['n_in'] = self.get_attr('n_chan')
         mult_params['n_out'] = self.get_attr('n_filt')
         mult_params['weight_t'] = self.get_weights('pointwise').type.name
-        mult_params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('pointwise').type.precision)
+        mult_params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('pointwise').type.precision, force_dsp=self.get_attr('force_dsp', False))
         pointwise_mult_config = self._config_template[4].format(**mult_params)
 
         return depthwise_mult_config + '\n' + depthwise_config + '\n' + pointwise_mult_config + '\n' + pointwise_config + '\n' + sep_config
@@ -891,7 +891,7 @@ class Conv2D(Layer):
         mult_params = self._default_config_params()
         mult_params['n_in'] = self.get_attr('n_chan') * self.get_attr('filt_height') * self.get_attr('filt_width')
         mult_params['n_out'] = self.get_attr('n_filt')
-        mult_params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('weight').type.precision)
+        mult_params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('weight').type.precision, force_dsp=self.get_attr('force_dsp', False))
         mult_config = self._config_template[1].format(**mult_params)
 
         return mult_config + '\n' + conv_config
@@ -1042,7 +1042,7 @@ class SeparableConv2D(Layer):
         mult_params['n_in'] = self.get_attr('n_chan') * self.get_attr('filt_height') * self.get_attr('filt_width')
         mult_params['n_out'] = self.get_attr('n_chan')
         mult_params['weight_t'] = self.get_weights('depthwise').type.name
-        mult_params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('depthwise').type.precision)
+        mult_params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('depthwise').type.precision, force_dsp=self.get_attr('force_dsp', False))
         depthwise_mult_config = self._config_template[3].format(**mult_params)
 
         # Pointwise config
@@ -1080,7 +1080,7 @@ class SeparableConv2D(Layer):
         mult_params['n_in'] = self.get_attr('n_chan')
         mult_params['n_out'] = self.get_attr('n_filt')
         mult_params['weight_t'] = self.get_weights('pointwise').type.name
-        mult_params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('pointwise').type.precision)
+        mult_params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('pointwise').type.precision, force_dsp=self.get_attr('force_dsp', False))
         pointwise_mult_config = self._config_template[4].format(**mult_params)
 
         return depthwise_mult_config + '\n' + depthwise_config + '\n' + pointwise_mult_config + '\n' + pointwise_config + '\n' + sep_config
@@ -1371,7 +1371,7 @@ class BatchNormalization(Layer):
     def config_cpp(self):
         params = self._default_config_params()
         params['n_in'] = self.get_input_variable().size_cpp()
-        params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('scale').type.precision)
+        params['product_type'] = self.model.config.backend.product_type(self.get_input_variable().type.precision, self.get_weights('scale').type.precision, force_dsp=self.get_attr('force_dsp', False))
 
         return self._config_template.format(**params)
 
@@ -1429,7 +1429,7 @@ class Dot(Merge):
         params = self._default_config_params()
         params['n_out'] = 1
         params['n_in'] = inp1.shape[0]
-        params['product_type'] = self.model.config.backend.product_type(inp1.type.precision, inp2.type.precision)
+        params['product_type'] = self.model.config.backend.product_type(inp1.type.precision, inp2.type.precision, force_dsp=self.get_attr('force_dsp', False))
         return self._config_template.format(**params)
 
 class Concatenate(Merge):
